@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build_nodocker:
+  build:
     runs-on: ubuntu-latest
     env:
       build_config: Release
@@ -54,3 +54,32 @@ jobs:
         name: arm_template
         path: arm
     
+  deploy_dev:
+    needs: build    
+    uses: ./.github/workflows/template-deploy.yml
+    with:
+      environment-to-deploy: dev
+      site-name: dotnet2022dev
+      sql-name: dotnet22devsql
+      resource-group: DotNet2022_Dev_RG
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      CONNSTRING_JSON: ${{ secrets.CONNSTRING_JSON }}
+      CATALOG_DB_CONNSTRING: ${{ secrets.CATALOG_DB_CONNSTRING }}
+      IDENTITY_DB_CONNSTRING: ${{ secrets.IDENTITY_DB_CONNSTRING }}
+
+  deploy_pro:
+    needs: deploy_dev
+    uses: ./.github/workflows/template-deploy.yml
+    with:
+      environment-to-deploy: pro
+      site-name: dotnet2022pro
+      sql-name: dotnet22prosql
+      resource-group: DotNet2022_Pro_RG
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      CONNSTRING_JSON: ${{ secrets.CONNSTRING_JSON }}
+      CATALOG_DB_CONNSTRING: ${{ secrets.CATALOG_DB_CONNSTRING }}
+      IDENTITY_DB_CONNSTRING: ${{ secrets.IDENTITY_DB_CONNSTRING }}

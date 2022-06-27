@@ -1,0 +1,93 @@
+name: Base deploy template
+
+on:
+  workflow_call:
+    inputs:
+      environment-to-deploy:
+        required: true
+        type: string
+      site-name:
+        required: true
+        type: string
+      sql-name:
+        required: true
+        type: string
+      resource-group:
+        required: true
+        type: string
+    secrets:
+      AZURE_CREDENTIALS:
+        required: true
+      DB_PASSWORD:
+        required: true
+      CONNSTRING_JSON:
+        required: true
+      CATALOG_DB_CONNSTRING:
+        required: true
+      IDENTITY_DB_CONNSTRING:
+        required: true
+jobs:
+  deploy:
+    environment: ${{ inputs.environment-to-deploy }}
+    runs-on: windows-latest
+    env:
+      site: ${{ inputs.site-name }}
+      sql_name: ${{ inputs.sql-name }}
+    steps:
+    - name: Download scripts
+      uses: actions/download-artifact@v2
+      with:
+        name: sql_scripts
+        path: sql_scripts
+    - name: Download site
+      uses: actions/download-artifact@v2
+      with:
+        name: web_site
+        path: web_site
+    - name: Download arm
+      uses: actions/download-artifact@v2
+      with:
+        name: arm_template
+        path: arm_template
+    
+    - name: 'Login via Azure CLI'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Deploy Azure Resource Manager (ARM) Template
+      uses: Azure/arm-deploy@v1
+      with:        
+        scope: resourcegroup
+        subscriptionId: '26da47a8-c28d-4564-ae8e-8ba88e995a0a'     
+        resourceGroupName: ${{ inputs.resource-group }}
+        template: arm_template/netcore_no_docker_rg_arm.json
+        deploymentMode: Incremental
+        deploymentName: deploy-${{ github.run_id }}
+        parameters: servers_netcoregithub_name=${{ env.sql_name }} sites_netcoregithub_name=${{ env.site }} sqlserver_password=${{ secrets.DB_PASSWORD }}
+
+    - name: Azure WebApp
+      uses: Azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.site }}      
+        package: web_site
+
+    - name: Azure App Service Settings
+      uses: Azure/appservice-settings@v1
+      with:
+        app-name: ${{ env.site }}
+        connection-strings-json: ${{ secrets.CONNSTRING_JSON }}
+
+    - name: Azure SQL Deploy
+      uses: Azure/sql-action@v1
+      with:
+        server-name: ${{ env.sql_name }}.database.windows.net
+        connection-string: ${{ secrets.CATALOG_DB_CONNSTRING }}
+        sql-file: sql_scripts/catalog.sql
+        
+    - name: Azure SQL Deploy
+      uses: Azure/sql-action@v1
+      with:
+        server-name: ${{ env.sql_name }}.database.windows.net
+        connection-string: ${{ secrets.IDENTITY_DB_CONNSTRING }}
+        sql-file: sql_scripts/identity.sql
